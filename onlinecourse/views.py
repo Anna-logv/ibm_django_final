@@ -1,7 +1,7 @@
 from django.shortcuts import render
-from django.http import Http404, HttpResponseRedirect
+from django.http import HttpResponseRedirect
 # <HINT> Import any new Models here
-from .models import Course, Enrollment,Choice
+from .models import Course, Enrollment, Question, Choice, Submission
 from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404, render, redirect
 from django.urls import reverse
@@ -110,7 +110,15 @@ def enroll(request, course_id):
          # Add each selected choice object to the submission object
          # Redirect to show_exam_result with the submission id
 #def submit(request, course_id):
+def submit(request, course_id):
+    enrollment=Enrollment.objects.get(user=request.user, course=course_id)
+    submission=Submission.objects.create(enrollment=enrollment)
+    for choice in Choice.objects.all():
+        checkbox_name="choice_"+str(choice.id)
+        if checkbox_name in request.POST:
+            submission.choices.add(choice)
 
+    return HttpResponseRedirect(reverse(viewname='onlinecourse:show_exam_result', args=(course_id,submission.pk,)))
 
 # <HINT> A example method to collect the selected choices from the exam form from the request object
 #def extract_answers(request):
@@ -131,5 +139,57 @@ def enroll(request, course_id):
         # Calculate the total score
 #def show_exam_result(request, course_id, submission_id):
 
+def show_exam_result(request, course_id, submission_id):
+    context = {}
+    course = Course.objects.get(pk=course_id)
+    context['course'] = course
+    submission=Submission.objects.get(pk=submission_id)
+    user_choices=submission.choices.all()
+    questions=Question.objects.filter(course=course_id)
+    score=0
+    total_score=0
+    result_questions=[]
 
+    for question in questions:
 
+        result_question={}
+        result_question["question_text"]=question.question_text
+        result_question["choices"]=[]
+        result_question["has_correct"]=False
+        result_question["has_incorrect"]=False
+        result_question["has_unselected"]=False
+
+        for choice in question.choice_set.all():
+
+            result_choice={}
+            result_choice["choice_text"]=choice.choice_text
+            result_choice["is_correct"]=choice.is_correct
+            result_choice["is_selected"]=False
+
+            for user_choice in user_choices:
+                if user_choice.pk==choice.pk:
+                    result_choice["is_selected"]=True
+
+                    if choice.is_correct==True:
+                        result_question["has_correct"]=True
+                    else:
+                        result_question["has_incorrect"]=True
+
+            if choice.is_correct==True and result_choice["is_selected"]==False:
+                result_question["has_unselected"]=True
+
+            result_question["choices"].append(result_choice)
+
+        total_score=total_score+question.grade
+
+        if result_question["has_correct"]==True and result_question["has_incorrect"]==False and result_question["has_unselected"]==False:
+            score=score+question.grade
+        elif result_question["has_correct"]==True:
+            score=score+question.grade/2
+        result_questions.append(result_question)
+
+    grade=score*100//total_score
+    context['grade'] = grade
+    context['questions']=result_questions
+
+    return render(request, 'onlinecourse/exam_result_bootstrap.html', context)

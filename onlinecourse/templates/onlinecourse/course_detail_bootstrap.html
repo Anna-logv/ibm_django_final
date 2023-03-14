@@ -68,7 +68,7 @@
             -->
             {% if user.is_authenticated %}   
             <a href="#questionform" data-toggle="collapse" class="btn btn-success btn-block text-right">Start Exam</a>
-            <form id="questionform" class="collapse" action="point to a submit view" method="post">
+            <form id="questionform" class="collapse" action="/onlinecourse/{{course.id}}/submit/" method="post">
                 {% for question in course.question_set.all %}
                     <div class="card mt-1">
                         <div class="card-header"><h5>{{ question.question_text}}</h5></div>
